@@ -1,0 +1,76 @@
+# ══════════════════════════════════════
+# NODE / NPM
+# ══════════════════════════════════════
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# ══════════════════════════════════════
+# BUILD OUTPUT
+# ══════════════════════════════════════
+dist/
+build/
+out/
+.output/
+
+# ══════════════════════════════════════
+# ENVIRONMENT / SECRETS
+# ══════════════════════════════════════
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+# .env.example é PERMITIDO no git (sem dados reais)
+
+# ══════════════════════════════════════
+# LOGS
+# ══════════════════════════════════════
+*.log
+logs/
+server.log
+server.err
+combined.log
+error.log
+
+# ══════════════════════════════════════
+# TESTES / COVERAGE
+# ══════════════════════════════════════
+coverage/
+.nyc_output/
+*.lcov
+
+# ══════════════════════════════════════
+# PRISMA
+# ══════════════════════════════════════
+# Migrations geradas em dev mas não em prod
+# prisma/migrations/ — MANTER no git para deploys
+
+# ══════════════════════════════════════
+# FRONTEND (Vite / React)
+# ══════════════════════════════════════
+frontend/dist/
+frontend/.vite/
+frontend/node_modules/
+
+# ══════════════════════════════════════
+# EDITORES / IDEs
+# ══════════════════════════════════════
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ══════════════════════════════════════
+# TEMPORÁRIOS / DEBUGGING
+# ══════════════════════════════════════
+scratch/
+test.js
+*.tmp
+*.temp

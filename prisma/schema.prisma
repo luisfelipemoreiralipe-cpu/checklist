@@ -1,0 +1,312 @@
+// ============================================================
+// SCHEMA PRISMA — Sistema de Performance Operacional
+// Multi-tenant SaaS para Restaurantes
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// TENANT (Restaurante / Empresa)
+// ============================================================
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique // usado em subdomain ou URL
+  plan      Plan     @default(FREE)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users            User[]
+  checklists       ChecklistTemplate[]
+  executions       ChecklistExecution[]
+  alerts           Alert[]
+  userScores       UserScore[]
+
+  @@map("tenants")
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+// ============================================================
+// USER
+// ============================================================
+model User {
+  id           String    @id @default(uuid())
+  tenantId     String    @map("tenant_id")
+  name         String
+  email        String
+  passwordHash String    @map("password_hash")
+  role         UserRole  @default(STAFF)
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  executions ChecklistExecution[]
+  scores     UserScore[]
+  answers    ExecutionAnswer[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([email])
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+// ============================================================
+// CHECKLIST TEMPLATE
+// ============================================================
+model ChecklistTemplate {
+  id          String             @id @default(uuid())
+  tenantId    String             @map("tenant_id")
+  name        String
+  description String?
+  category    ChecklistCategory
+  frequency   ChecklistFrequency
+  active      Boolean            @default(true)
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items      ChecklistItem[]
+  executions ChecklistExecution[]
+
+  @@index([tenantId])
+  @@index([tenantId, active])
+  @@index([tenantId, category])
+  @@map("checklist_templates")
+}
+
+enum ChecklistCategory {
+  KITCHEN
+  STORAGE
+  CLEANING
+  SAFETY
+  SERVICE
+  OPENING
+  CLOSING
+  GENERAL
+}
+
+enum ChecklistFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  SHIFT
+  ON_DEMAND
+}
+
+// ============================================================
+// CHECKLIST ITEM
+// ============================================================
+model ChecklistItem {
+  id           String       @id @default(uuid())
+  checklistId  String       @map("checklist_id")
+  title        String
+  description  String?
+  type         ItemType
+  required     Boolean      @default(true)
+  weight       Int          @default(1)   // pontuação base deste item
+  isCritical   Boolean      @default(false) @map("is_critical")
+  order        Int          @default(0)   // ordem de exibição
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  checklist ChecklistTemplate  @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  rules     ItemRule[]
+  answers   ExecutionAnswer[]
+
+  @@index([checklistId])
+  @@map("checklist_items")
+}
+
+enum ItemType {
+  BOOLEAN   // sim/não
+  NUMBER    // valor numérico
+  TEXT      // texto livre
+  PHOTO     // upload de foto
+  RATING    // nota de 1 a 5
+}
+
+// ============================================================
+// ITEM RULE (lógica condicional)
+// ============================================================
+model ItemRule {
+  id             String         @id @default(uuid())
+  checklistItemId String        @map("checklist_item_id")
+  conditionType  ConditionType  @map("condition_type")
+  conditionValue String         @map("condition_value") // ex: "3", "true", "sim"
+  actionType     ActionType     @map("action_type")
+  actionPayload  Json?          @map("action_payload")  // dados extras da ação
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  checklistItem ChecklistItem @relation(fields: [checklistItemId], references: [id], onDelete: Cascade)
+
+  @@index([checklistItemId])
+  @@map("item_rules")
+}
+
+enum ConditionType {
+  EQUALS
+  NOT_EQUALS
+  GREATER_THAN
+  LESS_THAN
+  GREATER_OR_EQUAL
+  LESS_OR_EQUAL
+  CONTAINS
+}
+
+enum ActionType {
+  REQUIRE_PHOTO
+  REQUIRE_COMMENT
+  GENERATE_ALERT
+  BLOCK_COMPLETION
+  NOTIFY_MANAGER
+}
+
+// ============================================================
+// CHECKLIST EXECUTION
+// ============================================================
+model ChecklistExecution {
+  id          String          @id @default(uuid())
+  tenantId    String          @map("tenant_id")
+  checklistId String          @map("checklist_id")
+  userId      String          @map("user_id")
+  status      ExecutionStatus @default(PENDING)
+  totalScore  Int             @default(0) @map("total_score")
+  maxScore    Int             @default(0) @map("max_score")  // score máximo possível
+  compliance  Float           @default(0) // percentual 0-100
+  shift       ShiftType?      // turno de execução
+  notes       String?
+  startedAt   DateTime?       @map("started_at")
+  completedAt DateTime?       @map("completed_at")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  checklist ChecklistTemplate @relation(fields: [checklistId], references: [id])
+  user      User              @relation(fields: [userId], references: [id])
+  answers   ExecutionAnswer[]
+  alerts    Alert[]
+
+  @@index([tenantId])
+  @@index([tenantId, checklistId])
+  @@index([tenantId, userId])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@map("checklist_executions")
+}
+
+enum ExecutionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ShiftType {
+  MORNING
+  AFTERNOON
+  NIGHT
+}
+
+// ============================================================
+// EXECUTION ANSWER (resposta por item)
+// ============================================================
+model ExecutionAnswer {
+  id              String   @id @default(uuid())
+  executionId     String   @map("execution_id")
+  checklistItemId String   @map("checklist_item_id")
+  userId          String   @map("user_id") // quem respondeu
+  value           Json     // dado flexível: boolean, number, string, etc.
+  photoUrl        String?  @map("photo_url")
+  comment         String?
+  isValid         Boolean  @default(true) @map("is_valid")
+  scoreImpact     Int      @default(0) @map("score_impact")
+  answeredAt      DateTime @default(now()) @map("answered_at")
+
+  execution     ChecklistExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  checklistItem ChecklistItem      @relation(fields: [checklistItemId], references: [id])
+  user          User               @relation(fields: [userId], references: [id])
+
+  @@unique([executionId, checklistItemId]) // uma resposta por item por execução
+  @@index([executionId])
+  @@index([checklistItemId])
+  @@map("execution_answers")
+}
+
+// ============================================================
+// USER SCORE (gamificação)
+// ============================================================
+model UserScore {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tenantId  String   @map("tenant_id")
+  score     Int      @default(0)
+  level     Int      @default(1)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+  @@index([tenantId, score])
+  @@map("user_scores")
+}
+
+// ============================================================
+// ALERT
+// ============================================================
+model Alert {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id")
+  executionId     String    @map("execution_id")
+  checklistItemId String?   @map("checklist_item_id")
+  type            AlertType
+  message         String
+  severity        AlertSeverity @default(MEDIUM)
+  resolved        Boolean   @default(false)
+  resolvedBy      String?   @map("resolved_by")
+  resolvedAt      DateTime? @map("resolved_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  tenant    Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  execution ChecklistExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, resolved])
+  @@index([tenantId, severity])
+  @@map("alerts")
+}
+
+enum AlertType {
+  CRITICAL_ITEM_FAILED
+  THRESHOLD_EXCEEDED
+  PHOTO_REQUIRED
+  COMPLIANCE_LOW
+  EXECUTION_ABANDONED
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
