@@ -10,6 +10,7 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default('7d'),
   BCRYPT_SALT_ROUNDS: z.string().default('12').transform(Number),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  CORS_ORIGINS: z.string().default('http://localhost:5173,http://127.0.0.1:5173'),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: checkops-backend
+    env: node
+    plan: free
+    buildCommand: npm install && npm run db:generate && npm run build
+    startCommand: npm run start
+    preDeployCommand: npm run db:migrate:deploy
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BCRYPT_SALT_ROUNDS
+        value: "12"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false # O usuário irá preencher no painel do Render com a URL do Supabase
+      - key: DIRECT_URL
+        sync: false # O usuário irá preencher no painel do Render com a URL do Supabase (Direct)
+      - key: CORS_ORIGINS
+        sync: false # O usuário irá preencher no painel do Render com a URL do Vercel (ex: https://seu-app.vercel.app)
